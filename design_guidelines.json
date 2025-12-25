@@ -1,0 +1,173 @@
+{
+  "project_name": "ATSForge",
+  "design_philosophy": {
+    "identity": "The Architect of Careers. Premium, Precision, Invisible Tech.",
+    "core_values": [
+      "Fusion over Imitation: Mix SaaS precision with editorial warmth.",
+      "Content is King: The resume is the hero. UI recedes.",
+      "Negative Space: Luxury is defined by what isn't there.",
+      "Motion with Meaning: Every animation guides the user."
+    ],
+    "anti_patterns": [
+      "No generic 'Bootstrap' layouts.",
+      "No full-screen gradients (use texture/noise).",
+      "No emojis (use Lucide icons).",
+      "No 'Inter' for headings (use Manrope).",
+      "No center-aligned text blocks (unless optical hero)."
+    ]
+  },
+  "theme_strategy": {
+    "mode": "hybrid",
+    "default": "light",
+    "logic": "Light mode for document editing (trust/clarity). Dark mode option for dashboard (focus/tech).",
+    "radius": "0.5rem"
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Manrope, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scaling": {
+      "h1": "text-4xl md:text-6xl font-bold tracking-tight",
+      "h2": "text-3xl md:text-4xl font-semibold tracking-tight",
+      "h3": "text-2xl font-semibold tracking-tight",
+      "body": "text-base leading-relaxed text-slate-600 dark:text-slate-400",
+      "small": "text-sm font-medium text-slate-500"
+    },
+    "rules": [
+      "Headings must use tight tracking (-0.02em).",
+      "Body text must have relaxed line-height (1.6).",
+      "Never use pure black text. Use Slate-900 or Slate-800."
+    ]
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "light": "#4F46E5",
+        "dark": "#6366F1",
+        "name": "Electric Indigo"
+      },
+      "background": {
+        "light": "#FFFFFF",
+        "dark": "#0F172A",
+        "subtle_light": "#F8FAFC",
+        "subtle_dark": "#1E293B"
+      },
+      "neutrals": {
+        "slate_50": "#F8FAFC",
+        "slate_100": "#F1F5F9",
+        "slate_200": "#E2E8F0",
+        "slate_800": "#1E293B",
+        "slate_900": "#0F172A"
+      },
+      "accents": {
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444"
+      }
+    },
+    "usage_rules": [
+      "Primary color is for Actions (Buttons, Links) ONLY.",
+      "Do not use Primary color for backgrounds unless it's a small pill/badge.",
+      "Borders should be subtle: Slate-200 (Light) or Slate-800 (Dark).",
+      "Gradients: Use only for 'glow' effects or text gradients, never full backgrounds."
+    ]
+  },
+  "layout_grids": {
+    "spacing_scale": [
+      "p-4", "p-6", "p-8", "p-12", "p-16", "p-24", "p-32"
+    ],
+    "container_rules": [
+      "Max width: max-w-7xl for marketing, max-w-screen-2xl for dashboard.",
+      "Padding: px-6 md:px-12 for all main containers."
+    ],
+    "bento_grid": {
+      "wrapper": "grid grid-cols-1 md:grid-cols-3 gap-6",
+      "card": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 hover:shadow-lg transition-all duration-300"
+    },
+    "dashboard_grid": {
+      "wrapper": "flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950",
+      "sidebar": "w-64 hidden md:block border-r border-slate-200 dark:border-slate-800",
+      "main": "flex-1 overflow-y-auto p-8"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200 rounded-lg px-6 py-2.5 font-medium",
+      "secondary": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-all rounded-lg px-6 py-2.5 font-medium",
+      "ghost": "text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all rounded-lg px-4 py-2"
+    },
+    "cards": {
+      "base": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200",
+      "glass": "bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/20 shadow-xl"
+    },
+    "inputs": {
+      "base": "flex h-10 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    }
+  },
+  "visual_assets": {
+    "icons": "Lucide React (lucide-react)",
+    "images": {
+      "hero_bg": {
+        "url": "https://images.unsplash.com/photo-1758974775331-c5400bbef625?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Sunlight streaming on minimalist desk",
+        "usage": "Hero section background or 'About' section visual."
+      },
+      "testimonial_1": {
+        "url": "https://images.unsplash.com/photo-1758518727592-706e80ebc354?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Professional woman smiling",
+        "usage": "Testimonial avatar or 'Success Story' feature."
+      },
+      "testimonial_2": {
+        "url": "https://images.unsplash.com/photo-1752952952773-80378cefc23d?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Cheerful professional man",
+        "usage": "Testimonial avatar or 'User' feature."
+      },
+      "abstract_feature": {
+        "url": "https://images.unsplash.com/photo-1761461535556-9bec8112eaab?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Modern building facade geometric",
+        "usage": "Background for 'Features' or 'How it Works' section."
+      }
+    },
+    "textures": {
+      "noise": "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\")"
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "transitions": {
+      "default": "transition-all duration-200 ease-in-out",
+      "page_load": {
+        "initial": { "opacity": 0, "y": 20 },
+        "animate": { "opacity": 1, "y": 0 },
+        "transition": { "duration": 0.4, "ease": "easeOut" }
+      },
+      "hover_lift": "hover:-translate-y-1 hover:shadow-lg"
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure 4.5:1 contrast ratio for text.",
+    "focus_states": "Visible focus rings (ring-2 ring-indigo-500) are mandatory.",
+    "reduced_motion": "Respect prefers-reduced-motion media query."
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add '@fontsource/manrope' and '@fontsource/inter' to package.json immediately.",
+    "2. CONFIGURE TAILWIND: Update tailwind.config.js to use the specific colors defined in 'colors.palette'. Override the default 'slate' if needed.",
+    "3. USE SHADCN: Use the provided Shadcn components but STYLE them with the 'components' rules (e.g., rounded-lg, border-slate-200).",
+    "4. NO EMOJIS: Use Lucide icons for all visual indicators.",
+    "5. DATA-TESTID: Add data-testid to all interactive elements (buttons, inputs, links).",
+    "6. IMAGES: Use the provided Unsplash URLs. Do not use placeholders.",
+    "7. LAYOUT: Follow the 'bento_grid' and 'dashboard_grid' structures strictly."
+  ],
+  "universal_guidelines": [
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: transition: all.",
+    "You MUST NOT center align the app container.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations.",
+    "NEVER use AI assistant Emoji characters."
+  ]
+}
