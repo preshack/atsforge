@@ -376,6 +376,86 @@ class ATSForgeAPITester:
         
         return all([success2, success3, success4])
 
+    def test_resume_upload(self):
+        """Test PDF/DOCX resume upload feature"""
+        if not self.token:
+            self.log_test("Resume Upload", False, "No token available")
+            return False
+        
+        # Create a simple text file to simulate upload
+        import tempfile
+        import os
+        
+        # Create a temporary text file with resume content
+        resume_content = """John Doe
+john.doe@email.com
+(555) 123-4567
+
+PROFESSIONAL SUMMARY
+Experienced software engineer with 5 years of experience in Python and web development.
+
+EXPERIENCE
+Software Engineer | Tech Corp | 2020-2024
+• Developed web applications using Python and React
+• Led team of 3 developers on major projects
+• Improved system performance by 40%
+
+EDUCATION
+Bachelor of Science in Computer Science
+University of Technology | 2020
+
+SKILLS
+Python, JavaScript, React, Node.js, SQL, Git"""
+        
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                f.write(resume_content)
+                temp_file_path = f.name
+            
+            # Test file upload
+            url = f"{self.base_url}/resumes/upload"
+            headers = {}
+            if self.token:
+                headers['Authorization'] = f'Bearer {self.token}'
+            
+            print(f"\n🔍 Testing Resume Upload...")
+            print(f"   URL: {url}")
+            
+            with open(temp_file_path, 'rb') as file:
+                files = {'file': ('test_resume.txt', file, 'text/plain')}
+                response = requests.post(url, files=files, headers=headers)
+            
+            # Clean up temp file
+            os.unlink(temp_file_path)
+            
+            success = response.status_code == 200
+            details = f"Status: {response.status_code}, Expected: 200"
+            
+            if not success:
+                try:
+                    error_detail = response.json().get('detail', 'No detail')
+                    details += f", Error: {error_detail}"
+                except:
+                    details += f", Response: {response.text[:200]}"
+            else:
+                try:
+                    response_data = response.json()
+                    if 'resume_id' in response_data and 'extracted_text' in response_data:
+                        details += f", Resume ID: {response_data['resume_id'][:12]}..."
+                    else:
+                        success = False
+                        details += ", Missing required fields in response"
+                except:
+                    success = False
+                    details += ", Invalid JSON response"
+            
+            self.log_test("Resume Upload", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Resume Upload", False, f"Exception: {str(e)}")
+            return False
+
     def test_dashboard_stats(self):
         """Test dashboard stats endpoint"""
         if not self.token:
