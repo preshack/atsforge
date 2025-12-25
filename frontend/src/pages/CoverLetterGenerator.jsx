@@ -9,7 +9,10 @@ import {
   Copy,
   Check,
   RefreshCw,
-  ChevronDown
+  Sparkles,
+  FileText,
+  Building2,
+  Briefcase
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -22,12 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
 import { toast } from "sonner";
 import axios from "axios";
 import { API } from "../App";
@@ -102,17 +99,12 @@ const CoverLetterGenerator = () => {
       return;
     }
 
-    if (!formData.title.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        title: `Cover Letter - ${formData.company_name || formData.position || "New"}`
-      }));
-    }
+    const title = formData.title.trim() || `Cover Letter - ${formData.company_name || formData.position || "New"}`;
 
     setGenerating(true);
     try {
       const response = await axios.post(`${API}/cover-letters`, {
-        title: formData.title || `Cover Letter - ${formData.company_name || "New"}`,
+        title: title,
         job_description: formData.job_description,
         resume_id: formData.resume_id || undefined,
         tone: formData.tone,
@@ -127,9 +119,23 @@ const CoverLetterGenerator = () => {
       navigate(`/cover-letter/${response.data.cover_letter_id}`, { replace: true });
       toast.success("Cover letter generated!");
     } catch (error) {
-      toast.error("Failed to generate cover letter");
+      toast.error(error.response?.data?.detail || "Failed to generate cover letter");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!coverLetter) return;
+    
+    try {
+      await axios.put(`${API}/cover-letters/${coverLetter.cover_letter_id}`, 
+        { content },
+        { withCredentials: true }
+      );
+      toast.success("Cover letter saved!");
+    } catch (error) {
+      toast.error("Failed to save");
     }
   };
 
@@ -174,27 +180,37 @@ const CoverLetterGenerator = () => {
     );
   }
 
+  const tones = [
+    { value: "professional", label: "Professional", desc: "Formal and corporate" },
+    { value: "friendly", label: "Friendly", desc: "Warm and approachable" },
+    { value: "confident", label: "Confident", desc: "Bold and assertive" },
+    { value: "enthusiastic", label: "Enthusiastic", desc: "Energetic and passionate" }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+      <header className="bg-white border-b border-slate-200 px-4 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-slate-100"
             data-testid="back-to-dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/25">
               <Mail className="w-5 h-5 text-white" />
             </div>
-            <span className="font-heading font-semibold text-slate-900">
-              {coverLetter ? coverLetter.title : "New Cover Letter"}
-            </span>
+            <div>
+              <h1 className="font-heading font-semibold text-slate-900">
+                {coverLetter ? coverLetter.title : "Cover Letter Generator"}
+              </h1>
+              <p className="text-xs text-slate-500">AI-powered cover letters</p>
+            </div>
           </div>
         </div>
 
@@ -203,10 +219,18 @@ const CoverLetterGenerator = () => {
             <Button
               variant="outline"
               onClick={handleCopy}
+              className="hidden sm:flex"
               data-testid="copy-btn"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span className="ml-2 hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+              <span className="ml-2">{copied ? "Copied" : "Copy"}</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSave}
+              className="hidden sm:flex"
+            >
+              Save
             </Button>
             <Button
               onClick={handleExport}
@@ -220,77 +244,89 @@ const CoverLetterGenerator = () => {
         )}
       </header>
 
-      <main className="max-w-6xl mx-auto p-6 md:p-8">
+      <main className="max-w-7xl mx-auto p-6 lg:p-10">
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left Panel - Form */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
-              <h2 className="font-heading text-xl font-semibold text-slate-900 mb-6">
-                {coverLetter ? "Cover Letter Details" : "Generate Cover Letter"}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8">
+              <h2 className="font-heading text-2xl font-semibold text-slate-900 mb-6">
+                {coverLetter ? "Update Details" : "Generate Cover Letter"}
               </h2>
 
-              <div className="space-y-5">
+              <div className="space-y-6">
                 <div>
-                  <Label>Title</Label>
+                  <Label className="text-slate-700 font-medium">Cover Letter Title</Label>
                   <Input
                     value={formData.title}
                     onChange={(e) => handleChange("title", e.target.value)}
-                    placeholder="e.g., Application for Software Engineer at Google"
-                    className="mt-1.5"
+                    placeholder="e.g., Software Engineer at Google"
+                    className="mt-2 h-12"
                     data-testid="title-input"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>Company Name</Label>
+                    <Label className="text-slate-700 font-medium flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-slate-400" />
+                      Company Name
+                    </Label>
                     <Input
                       value={formData.company_name}
                       onChange={(e) => handleChange("company_name", e.target.value)}
-                      placeholder="Google"
-                      className="mt-1.5"
+                      placeholder="Google, Amazon, etc."
+                      className="mt-2 h-12"
                       data-testid="company-input"
                     />
                   </div>
                   <div>
-                    <Label>Position</Label>
+                    <Label className="text-slate-700 font-medium flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-slate-400" />
+                      Position
+                    </Label>
                     <Input
                       value={formData.position}
                       onChange={(e) => handleChange("position", e.target.value)}
                       placeholder="Software Engineer"
-                      className="mt-1.5"
+                      className="mt-2 h-12"
                       data-testid="position-input"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Job Description *</Label>
+                  <Label className="text-slate-700 font-medium">
+                    Job Description <span className="text-red-500">*</span>
+                  </Label>
                   <Textarea
                     value={formData.job_description}
                     onChange={(e) => handleChange("job_description", e.target.value)}
-                    placeholder="Paste the full job description here..."
+                    placeholder="Paste the full job description here. The more detail, the better the cover letter..."
                     rows={8}
-                    className="mt-1.5"
+                    className="mt-2 text-base"
                     data-testid="job-description-input"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>Base on Resume</Label>
+                    <Label className="text-slate-700 font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-slate-400" />
+                      Base on Resume
+                    </Label>
                     <Select
                       value={formData.resume_id}
                       onValueChange={(value) => handleChange("resume_id", value)}
                     >
-                      <SelectTrigger className="mt-1.5" data-testid="resume-select">
-                        <SelectValue placeholder="Select a resume (optional)" />
+                      <SelectTrigger className="mt-2 h-12" data-testid="resume-select">
+                        <SelectValue placeholder="Select resume (optional)" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="">None</SelectItem>
                         {resumes.map((resume) => (
                           <SelectItem key={resume.resume_id} value={resume.resume_id}>
                             {resume.title}
@@ -300,29 +336,35 @@ const CoverLetterGenerator = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Tone</Label>
+                    <Label className="text-slate-700 font-medium flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-slate-400" />
+                      Tone
+                    </Label>
                     <Select
                       value={formData.tone}
                       onValueChange={(value) => handleChange("tone", value)}
                     >
-                      <SelectTrigger className="mt-1.5" data-testid="tone-select">
+                      <SelectTrigger className="mt-2 h-12" data-testid="tone-select">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="friendly">Friendly</SelectItem>
-                        <SelectItem value="confident">Confident</SelectItem>
-                        <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+                        {tones.map((tone) => (
+                          <SelectItem key={tone.value} value={tone.value}>
+                            <div className="flex flex-col">
+                              <span>{tone.label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                {!coverLetter && (
+                {!coverLetter ? (
                   <Button
                     onClick={handleGenerate}
                     disabled={generating || !formData.job_description.trim()}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 text-base"
+                    className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white py-7 text-lg rounded-xl shadow-xl shadow-indigo-500/25"
                     data-testid="generate-btn"
                   >
                     {generating ? (
@@ -332,23 +374,21 @@ const CoverLetterGenerator = () => {
                       </>
                     ) : (
                       <>
-                        <Mail className="w-5 h-5 mr-2" />
+                        <Sparkles className="w-5 h-5 mr-2" />
                         Generate Cover Letter
                       </>
                     )}
                   </Button>
-                )}
-
-                {coverLetter && (
+                ) : (
                   <Button
                     variant="outline"
                     onClick={handleGenerate}
                     disabled={generating}
-                    className="w-full"
+                    className="w-full py-6 text-base"
                     data-testid="regenerate-btn"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${generating ? "animate-spin" : ""}`} />
-                    Regenerate
+                    Regenerate with New Settings
                   </Button>
                 )}
               </div>
@@ -357,30 +397,42 @@ const CoverLetterGenerator = () => {
 
           {/* Right Panel - Preview */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
           >
-            <div className="bg-white border border-slate-200 rounded-xl p-6 min-h-[600px]">
-              <h2 className="font-heading text-xl font-semibold text-slate-900 mb-6">
-                Preview
-              </h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8 min-h-[700px] sticky top-24">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-heading text-xl font-semibold text-slate-900">
+                  Preview
+                </h2>
+                {content && (
+                  <div className="flex items-center gap-2 sm:hidden">
+                    <Button variant="ghost" size="sm" onClick={handleCopy}>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               {content ? (
                 <div className="prose prose-slate max-w-none">
                   <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    className="min-h-[500px] font-serif text-base leading-relaxed resize-none border-0 focus:ring-0 p-0"
+                    className="min-h-[550px] text-base leading-7 resize-none border-0 focus:ring-0 p-0 bg-transparent"
+                    style={{ fontFamily: 'Georgia, serif' }}
                     data-testid="content-editor"
                   />
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                  <Mail className="w-16 h-16 text-slate-200 mb-4" />
-                  <p className="text-slate-500 mb-2">Your cover letter will appear here</p>
-                  <p className="text-sm text-slate-400">
-                    Fill in the details and click Generate
+                <div className="flex flex-col items-center justify-center h-[500px] text-center">
+                  <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
+                    <Mail className="w-10 h-10 text-slate-300" />
+                  </div>
+                  <p className="text-slate-500 text-lg mb-2">Your cover letter will appear here</p>
+                  <p className="text-sm text-slate-400 max-w-sm">
+                    Fill in the job description and click Generate to create a tailored cover letter
                   </p>
                 </div>
               )}
