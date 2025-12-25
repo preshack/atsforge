@@ -37,6 +37,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # ========================
+# HEALTH CHECK
+# ========================
+
+@api_router.get("/")
+async def health_check():
+    return {"message": "ATSForge API is running", "status": "healthy"}
+
+# ========================
 # MODELS
 # ========================
 
