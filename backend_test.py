@@ -503,6 +503,7 @@ def main():
         ("Get Current User", tester.test_get_me),
         ("Onboarding", tester.test_onboarding),
         ("Resume CRUD", tester.test_resume_crud),
+        ("Resume Upload (NEW)", tester.test_resume_upload),
         ("AI Generation", tester.test_ai_generation),
         ("Cover Letter CRUD", tester.test_cover_letter_crud),
         ("Dashboard Stats", tester.test_dashboard_stats),
