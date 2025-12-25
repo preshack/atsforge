@@ -399,7 +399,7 @@ async def create_resume(resume_data: ResumeCreate, user: User = Depends(get_curr
     }
     
     await db.resumes.insert_one(resume_doc)
-    del resume_doc["_id"] if "_id" in resume_doc else None
+    resume_doc.pop("_id", None)
     
     return Resume(**{**resume_doc, "created_at": datetime.fromisoformat(now), "updated_at": datetime.fromisoformat(now)})
 
