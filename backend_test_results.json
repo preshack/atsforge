@@ -1,0 +1,96 @@
+{
+  "timestamp": "2025-12-25T23:31:24.185910",
+  "summary": {
+    "total_tests": 17,
+    "passed": 13,
+    "failed": 4,
+    "success_rate": 76.5
+  },
+  "test_results": [
+    {
+      "test": "Health Check",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Register for Login Test",
+      "success": false,
+      "details": "Status: 400, Expected: 200, Error: Email already registered"
+    },
+    {
+      "test": "Get Current User",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Save Onboarding",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Get Onboarding",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Create Resume",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Get Resume",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Get All Resumes",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Update Resume",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Duplicate Resume",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Delete Resume",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "AI Resume Generation",
+      "success": false,
+      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+    },
+    {
+      "test": "ATS Optimization",
+      "success": false,
+      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+    },
+    {
+      "test": "Create Cover Letter",
+      "success": false,
+      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+    },
+    {
+      "test": "Dashboard Stats",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Logout",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    }
+  ]
+}
