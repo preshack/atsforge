@@ -326,7 +326,7 @@ const CoverLetterGenerator = () => {
                         <SelectValue placeholder="Select resume (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {resumes.map((resume) => (
                           <SelectItem key={resume.resume_id} value={resume.resume_id}>
                             {resume.title}
