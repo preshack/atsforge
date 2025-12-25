@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-12-25T23:31:24.185910",
+  "timestamp": "2025-12-25T23:49:57.758874",
   "summary": {
-    "total_tests": 17,
-    "passed": 13,
-    "failed": 4,
-    "success_rate": 76.5
+    "total_tests": 22,
+    "passed": 22,
+    "failed": 0,
+    "success_rate": 100.0
   },
   "test_results": [
     {
@@ -19,8 +19,13 @@
     },
     {
       "test": "Register for Login Test",
-      "success": false,
-      "details": "Status: 400, Expected: 200, Error: Email already registered"
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "User Login",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
     },
     {
       "test": "Get Current User",
@@ -68,19 +73,39 @@
       "details": "Status: 200, Expected: 200"
     },
     {
+      "test": "Resume Upload",
+      "success": true,
+      "details": "Status: 200, Expected: 200, Resume ID: resume_cd625..."
+    },
+    {
       "test": "AI Resume Generation",
-      "success": false,
-      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+      "success": true,
+      "details": "Status: 200, Expected: 200"
     },
     {
       "test": "ATS Optimization",
-      "success": false,
-      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+      "success": true,
+      "details": "Status: 200, Expected: 200"
     },
     {
       "test": "Create Cover Letter",
-      "success": false,
-      "details": "Status: 520, Expected: 200, Error: 500: AI service error"
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Get Cover Letter",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Get All Cover Letters",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
+    },
+    {
+      "test": "Delete Cover Letter",
+      "success": true,
+      "details": "Status: 200, Expected: 200"
     },
     {
       "test": "Dashboard Stats",
