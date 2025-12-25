@@ -90,7 +90,9 @@ const CoverLetterGenerator = () => {
   };
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // Handle "none" as empty for resume_id
+    const actualValue = value === "none" ? "" : value;
+    setFormData(prev => ({ ...prev, [field]: actualValue }));
   };
 
   const handleGenerate = async () => {
