@@ -30,10 +30,12 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'atsforge_jwt_secret_key_2024')
 JWT_ALGORITHM = "HS256"
 OPENROUTER_KEY = os.environ.get('OPENROUTER_KEY')
 
+# Use FREE DeepSeek model
+AI_MODEL = "deepseek/deepseek-r1:free"
+
 app = FastAPI(title="ATSForge API")
 api_router = APIRouter(prefix="/api")
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,7 @@ class Resume(BaseModel):
     user_id: str
     title: str
     content: Dict[str, Any]
+    latex_code: Optional[str] = None
     ats_score: Optional[int] = None
     version: int = 1
     created_at: datetime
@@ -91,6 +94,10 @@ class ResumeGenerateRequest(BaseModel):
     messages: List[ChatMessage]
     resume_id: Optional[str] = None
     section: Optional[str] = None
+
+class LatexGenerateRequest(BaseModel):
+    content: Dict[str, Any]
+    template: str = "modern"
 
 class CoverLetterCreate(BaseModel):
     title: str
@@ -127,7 +134,7 @@ class ATSScoreResponse(BaseModel):
 
 @api_router.get("/")
 async def health_check():
-    return {"message": "ATSForge API is running", "status": "healthy"}
+    return {"message": "ATSForge API is running", "status": "healthy", "ai_model": AI_MODEL}
 
 # ========================
 # AUTH HELPERS
@@ -185,38 +192,164 @@ async def get_current_user(request: Request) -> User:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 # ========================
-# AI HELPER - with fallback
+# AI HELPER - FREE DeepSeek
 # ========================
 
 async def call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 2000) -> str:
-    """Call AI with error handling and fallback responses"""
+    """Call FREE DeepSeek model via OpenRouter"""
     try:
-        async with httpx.AsyncClient(timeout=60.0) as http_client:
+        async with httpx.AsyncClient(timeout=120.0) as http_client:
             response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {OPENROUTER_KEY}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://atsforge.app",
+                    "X-Title": "ATSForge"
                 },
                 json={
-                    "model": "anthropic/claude-3-haiku",
+                    "model": AI_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    "max_tokens": max_tokens
+                    "max_tokens": max_tokens,
+                    "temperature": 0.7
                 }
             )
             
             if response.status_code == 200:
                 result = response.json()
-                return result["choices"][0]["message"]["content"]
+                content = result["choices"][0]["message"]["content"]
+                # DeepSeek R1 may include <think> tags, strip them
+                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                return content
             else:
                 logger.error(f"OpenRouter error: {response.status_code} - {response.text}")
                 return None
     except Exception as e:
         logger.error(f"AI call failed: {e}")
         return None
+
+# ========================
+# LaTeX TEMPLATES
+# ========================
+
+def generate_latex_resume(content: Dict[str, Any], template: str = "modern") -> str:
+    """Generate LaTeX code for resume"""
+    personal = content.get("personalInfo", {})
+    
+    # Escape LaTeX special characters
+    def escape_latex(text):
+        if not text:
+            return ""
+        special_chars = {'&': r'\&', '%': r'\%', '$': r'\$', '#': r'\#', '_': r'\_', '{': r'\{', '}': r'\}', '~': r'\textasciitilde{}', '^': r'\textasciicircum{}'}
+        for char, replacement in special_chars.items():
+            text = text.replace(char, replacement)
+        return text
+    
+    name = escape_latex(personal.get("name", "Your Name"))
+    email = escape_latex(personal.get("email", "email@example.com"))
+    phone = escape_latex(personal.get("phone", ""))
+    location = escape_latex(personal.get("location", ""))
+    linkedin = escape_latex(personal.get("linkedin", ""))
+    summary = escape_latex(content.get("summary", ""))
+    
+    # Build experience section
+    experience_tex = ""
+    for exp in content.get("experience", []):
+        title = escape_latex(exp.get("title", ""))
+        company = escape_latex(exp.get("company", ""))
+        dates = f"{escape_latex(exp.get('startDate', ''))} -- {escape_latex(exp.get('endDate', 'Present'))}"
+        
+        bullets_tex = ""
+        for bullet in exp.get("bullets", []):
+            if bullet:
+                bullets_tex += f"    \\item {escape_latex(bullet)}\n"
+        
+        experience_tex += f"""
+\\subsection*{{{title}}}
+\\textit{{{company}}} \\hfill {dates}
+\\begin{{itemize}}[leftmargin=*]
+{bullets_tex}\\end{{itemize}}
+"""
+
+    # Build education section
+    education_tex = ""
+    for edu in content.get("education", []):
+        degree = escape_latex(edu.get("degree", ""))
+        field = escape_latex(edu.get("field", ""))
+        school = escape_latex(edu.get("school", ""))
+        grad_date = escape_latex(edu.get("graduationDate", ""))
+        
+        education_tex += f"""
+\\textbf{{{degree} in {field}}} \\hfill {grad_date} \\\\
+\\textit{{{school}}}
+\\vspace{{0.5em}}
+"""
+
+    # Build skills
+    skills = content.get("skills", [])
+    skills_tex = ", ".join([escape_latex(s) for s in skills]) if skills else "Add your skills here"
+
+    latex_code = f"""\\documentclass[11pt,a4paper]{{article}}
+\\usepackage[utf8]{{inputenc}}
+\\usepackage[T1]{{fontenc}}
+\\usepackage{{lmodern}}
+\\usepackage[margin=0.75in]{{geometry}}
+\\usepackage{{enumitem}}
+\\usepackage{{hyperref}}
+\\usepackage{{xcolor}}
+\\usepackage{{titlesec}}
+
+% Colors
+\\definecolor{{headercolor}}{{RGB}}{{79, 70, 229}}
+\\definecolor{{linkcolor}}{{RGB}}{{79, 70, 229}}
+
+% Section formatting
+\\titleformat{{\\section}}{{\\Large\\bfseries\\color{{headercolor}}}}{{}}{{0em}}{{}}[\\titlerule]
+\\titlespacing{{\\section}}{{0pt}}{{1em}}{{0.5em}}
+
+% Hyperlink setup
+\\hypersetup{{
+    colorlinks=true,
+    linkcolor=linkcolor,
+    urlcolor=linkcolor
+}}
+
+% Remove page numbers
+\\pagestyle{{empty}}
+
+\\begin{{document}}
+
+% Header
+\\begin{{center}}
+    {{\\Huge\\bfseries {name}}}\\\\[0.3em]
+    {email}{f" $|$ {phone}" if phone else ""}{f" $|$ {location}" if location else ""}
+    {f"\\\\\\href{{https://{linkedin}}}{{{linkedin}}}" if linkedin else ""}
+\\end{{center}}
+
+\\vspace{{0.5em}}
+
+% Summary
+{"\\section*{Professional Summary}" if summary else ""}
+{summary if summary else ""}
+
+% Experience
+{"\\section*{Experience}" if experience_tex else ""}
+{experience_tex}
+
+% Education
+{"\\section*{Education}" if education_tex else ""}
+{education_tex}
+
+% Skills
+\\section*{{Skills}}
+{skills_tex}
+
+\\end{{document}}
+"""
+    return latex_code
 
 # ========================
 # AUTH ENDPOINTS
@@ -299,9 +432,9 @@ async def process_google_session(request: Request, response: Response):
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient() as http_client:
         try:
-            resp = await client.get(
+            resp = await http_client.get(
                 "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
                 headers={"X-Session-ID": session_id}
             )
@@ -385,17 +518,14 @@ async def logout(request: Request, response: Response):
     return {"message": "Logged out"}
 
 # ========================
-# ONBOARDING ENDPOINTS
+# ONBOARDING
 # ========================
 
 @api_router.post("/users/onboarding")
 async def save_onboarding(data: OnboardingData, user: User = Depends(get_current_user)):
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {
-            "onboarding": data.model_dump(),
-            "onboarding_completed": True
-        }}
+        {"$set": {"onboarding": data.model_dump(), "onboarding_completed": True}}
     )
     return {"message": "Onboarding completed", "onboarding_completed": True}
 
@@ -408,25 +538,30 @@ async def get_onboarding(user: User = Depends(get_current_user)):
 # RESUME ENDPOINTS
 # ========================
 
-@api_router.post("/resumes", response_model=Resume)
+@api_router.post("/resumes")
 async def create_resume(resume_data: ResumeCreate, user: User = Depends(get_current_user)):
     resume_id = f"resume_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
+    
+    content = resume_data.content or {
+        "personalInfo": {"name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": ""},
+        "summary": "",
+        "experience": [],
+        "education": [],
+        "skills": [],
+        "certifications": [],
+        "projects": [],
+        "languages": []
+    }
+    
+    latex_code = generate_latex_resume(content)
     
     resume_doc = {
         "resume_id": resume_id,
         "user_id": user.user_id,
         "title": resume_data.title,
-        "content": resume_data.content or {
-            "personalInfo": {"name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": ""},
-            "summary": "",
-            "experience": [],
-            "education": [],
-            "skills": [],
-            "certifications": [],
-            "projects": [],
-            "languages": []
-        },
+        "content": content,
+        "latex_code": latex_code,
         "ats_score": None,
         "version": 1,
         "created_at": now,
@@ -436,34 +571,31 @@ async def create_resume(resume_data: ResumeCreate, user: User = Depends(get_curr
     await db.resumes.insert_one(resume_doc)
     resume_doc.pop("_id", None)
     
-    return Resume(**{**resume_doc, "created_at": datetime.fromisoformat(now), "updated_at": datetime.fromisoformat(now)})
+    return {
+        "resume_id": resume_id,
+        "user_id": user.user_id,
+        "title": resume_data.title,
+        "content": content,
+        "latex_code": latex_code,
+        "ats_score": None,
+        "version": 1,
+        "created_at": now,
+        "updated_at": now
+    }
 
-@api_router.get("/resumes", response_model=List[Resume])
+@api_router.get("/resumes")
 async def get_resumes(user: User = Depends(get_current_user)):
     resumes = await db.resumes.find({"user_id": user.user_id}, {"_id": 0}).sort("updated_at", -1).to_list(100)
-    result = []
-    for r in resumes:
-        if isinstance(r["created_at"], str):
-            r["created_at"] = datetime.fromisoformat(r["created_at"])
-        if isinstance(r["updated_at"], str):
-            r["updated_at"] = datetime.fromisoformat(r["updated_at"])
-        result.append(Resume(**r))
-    return result
+    return resumes
 
-@api_router.get("/resumes/{resume_id}", response_model=Resume)
+@api_router.get("/resumes/{resume_id}")
 async def get_resume(resume_id: str, user: User = Depends(get_current_user)):
     resume = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
-    
-    if isinstance(resume["created_at"], str):
-        resume["created_at"] = datetime.fromisoformat(resume["created_at"])
-    if isinstance(resume["updated_at"], str):
-        resume["updated_at"] = datetime.fromisoformat(resume["updated_at"])
-    
-    return Resume(**resume)
+    return resume
 
-@api_router.put("/resumes/{resume_id}", response_model=Resume)
+@api_router.put("/resumes/{resume_id}")
 async def update_resume(resume_id: str, update_data: ResumeUpdate, user: User = Depends(get_current_user)):
     resume = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
     if not resume:
@@ -474,18 +606,14 @@ async def update_resume(resume_id: str, update_data: ResumeUpdate, user: User = 
         update_fields["title"] = update_data.title
     if update_data.content:
         update_fields["content"] = update_data.content
+        update_fields["latex_code"] = generate_latex_resume(update_data.content)
     
     update_fields["version"] = resume.get("version", 1) + 1
     
     await db.resumes.update_one({"resume_id": resume_id}, {"$set": update_fields})
     
     updated = await db.resumes.find_one({"resume_id": resume_id}, {"_id": 0})
-    if isinstance(updated["created_at"], str):
-        updated["created_at"] = datetime.fromisoformat(updated["created_at"])
-    if isinstance(updated["updated_at"], str):
-        updated["updated_at"] = datetime.fromisoformat(updated["updated_at"])
-    
-    return Resume(**updated)
+    return updated
 
 @api_router.delete("/resumes/{resume_id}")
 async def delete_resume(resume_id: str, user: User = Depends(get_current_user)):
@@ -494,7 +622,7 @@ async def delete_resume(resume_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Resume not found")
     return {"message": "Resume deleted"}
 
-@api_router.post("/resumes/{resume_id}/duplicate", response_model=Resume)
+@api_router.post("/resumes/{resume_id}/duplicate")
 async def duplicate_resume(resume_id: str, user: User = Depends(get_current_user)):
     original = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
     if not original:
@@ -514,10 +642,33 @@ async def duplicate_resume(resume_id: str, user: User = Depends(get_current_user
     
     await db.resumes.insert_one(new_resume)
     new_resume.pop("_id", None)
-    new_resume["created_at"] = datetime.fromisoformat(now)
-    new_resume["updated_at"] = datetime.fromisoformat(now)
     
-    return Resume(**new_resume)
+    return new_resume
+
+# ========================
+# LaTeX GENERATION
+# ========================
+
+@api_router.post("/resumes/generate-latex")
+async def generate_latex(request: LatexGenerateRequest, user: User = Depends(get_current_user)):
+    """Generate LaTeX code from resume content"""
+    latex_code = generate_latex_resume(request.content, request.template)
+    return {"latex_code": latex_code}
+
+@api_router.post("/resumes/{resume_id}/latex")
+async def get_resume_latex(resume_id: str, user: User = Depends(get_current_user)):
+    """Get or regenerate LaTeX for a resume"""
+    resume = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    # Regenerate LaTeX
+    latex_code = generate_latex_resume(resume.get("content", {}))
+    
+    # Update in DB
+    await db.resumes.update_one({"resume_id": resume_id}, {"$set": {"latex_code": latex_code}})
+    
+    return {"latex_code": latex_code, "resume_id": resume_id}
 
 # ========================
 # PDF UPLOAD & PARSING
@@ -525,30 +676,29 @@ async def duplicate_resume(resume_id: str, user: User = Depends(get_current_user
 
 @api_router.post("/resumes/upload")
 async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_current_user)):
-    """Parse uploaded PDF/DOCX and extract resume content"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     
     file_ext = file.filename.lower().split('.')[-1]
-    content = await file.read()
+    file_content = await file.read()
     
     extracted_text = ""
     
     try:
         if file_ext == 'pdf':
             import pdfplumber
-            with pdfplumber.open(BytesIO(content)) as pdf:
+            with pdfplumber.open(BytesIO(file_content)) as pdf:
                 for page in pdf.pages:
                     text = page.extract_text()
                     if text:
                         extracted_text += text + "\n"
         elif file_ext in ['docx', 'doc']:
             from docx import Document
-            doc = Document(BytesIO(content))
+            doc = Document(BytesIO(file_content))
             for para in doc.paragraphs:
                 extracted_text += para.text + "\n"
         elif file_ext == 'txt':
-            extracted_text = content.decode('utf-8')
+            extracted_text = file_content.decode('utf-8')
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF, DOCX, or TXT")
     except Exception as e:
@@ -558,10 +708,9 @@ async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_c
     if not extracted_text.strip():
         raise HTTPException(status_code=400, detail="Could not extract text from file")
     
-    # Parse the extracted text into structured format
     parsed_content = parse_resume_text(extracted_text)
+    latex_code = generate_latex_resume(parsed_content)
     
-    # Create resume
     resume_id = f"resume_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     
@@ -570,6 +719,7 @@ async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_c
         "user_id": user.user_id,
         "title": file.filename.rsplit('.', 1)[0],
         "content": parsed_content,
+        "latex_code": latex_code,
         "raw_text": extracted_text,
         "ats_score": None,
         "version": 1,
@@ -584,13 +734,12 @@ async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_c
         "resume_id": resume_id,
         "title": resume_doc["title"],
         "content": parsed_content,
-        "extracted_text": extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text
+        "latex_code": latex_code,
+        "extracted_text": extracted_text[:1000] + "..." if len(extracted_text) > 1000 else extracted_text
     }
 
 def parse_resume_text(text: str) -> Dict[str, Any]:
     """Parse raw resume text into structured format"""
-    lines = text.split('\n')
-    
     content = {
         "personalInfo": {"name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": ""},
         "summary": "",
@@ -617,14 +766,14 @@ def parse_resume_text(text: str) -> Dict[str, Any]:
     if linkedin_match:
         content["personalInfo"]["linkedin"] = linkedin_match.group()
     
-    # First non-empty line is usually the name
+    lines = text.split('\n')
     for line in lines:
         line = line.strip()
         if line and len(line) < 50 and not '@' in line and not any(c.isdigit() for c in line[:5]):
             content["personalInfo"]["name"] = line
             break
     
-    # Extract skills (look for common patterns)
+    # Extract skills
     skills_section = False
     for line in lines:
         line_lower = line.lower().strip()
@@ -635,7 +784,6 @@ def parse_resume_text(text: str) -> Dict[str, Any]:
             if any(keyword in line_lower for keyword in ['experience', 'education', 'project', 'certification']):
                 skills_section = False
             else:
-                # Split by common delimiters
                 skills = re.split(r'[,|•·]', line)
                 for skill in skills:
                     skill = skill.strip()
@@ -645,24 +793,23 @@ def parse_resume_text(text: str) -> Dict[str, Any]:
     return content
 
 # ========================
-# AI GENERATION ENDPOINTS
+# AI GENERATION
 # ========================
 
 @api_router.post("/resumes/generate")
 async def generate_resume_content(request: ResumeGenerateRequest, user: User = Depends(get_current_user)):
-    """Generate or improve resume content using AI"""
+    """Generate or improve resume content using FREE DeepSeek"""
     
     system_prompt = """You are an expert ATS-friendly resume writer. Help create professional resumes.
 
 RULES:
-1. Never fabricate experience or skills
-2. Use strong action verbs (Led, Developed, Implemented, Achieved)
-3. Include quantified achievements (%, $, numbers)
-4. Keep formatting simple - no tables or graphics
+1. Never fabricate experience or skills - only use what user provides
+2. Use strong action verbs (Led, Developed, Implemented, Achieved, Increased, Reduced)
+3. Include quantified achievements with numbers/percentages when possible
+4. Keep formatting simple - no tables or graphics (ATS compatible)
 5. Be concise - 1-2 lines per bullet point
 
-When asked to generate content, respond with helpful suggestions.
-If asked for the full resume, output JSON with this structure:
+When asked to generate full resume content, respond with JSON:
 {
   "personalInfo": {"name": "", "email": "", "phone": "", "location": "", "linkedin": ""},
   "summary": "2-3 sentence professional summary",
@@ -670,32 +817,32 @@ If asked for the full resume, output JSON with this structure:
   "education": [{"school": "", "degree": "", "field": "", "graduationDate": ""}],
   "skills": ["skill1", "skill2"],
   "certifications": []
-}"""
+}
+
+Otherwise, provide helpful resume writing advice and suggestions."""
 
     messages_text = "\n".join([f"{m.role}: {m.content}" for m in request.messages])
     
-    ai_response = await call_ai(system_prompt, messages_text, 3000)
+    ai_response = await call_ai(system_prompt, messages_text, 2000)
     
     if ai_response:
-        return {"content": ai_response, "message": "Content generated successfully"}
+        return {"content": ai_response, "message": "Content generated successfully", "model": AI_MODEL}
     else:
-        # Fallback response
         return {
-            "content": "I can help you create your resume! Please tell me:\n\n1. What's your target job title?\n2. How many years of experience do you have?\n3. What are your key skills?\n\nOnce you share these details, I'll help craft compelling bullet points and a professional summary.",
-            "message": "Using guided mode"
+            "content": "I can help you create an ATS-optimized resume! Please share:\n\n1. Your target job title\n2. Years of experience\n3. Key skills and achievements\n\nI'll help craft compelling bullet points with action verbs and metrics.",
+            "message": "Using guided mode - AI temporarily unavailable",
+            "model": "fallback"
         }
 
 @api_router.post("/resumes/optimize")
 async def optimize_resume(request: ATSOptimizeRequest, user: User = Depends(get_current_user)):
-    """Analyze resume for ATS compatibility"""
+    """Analyze resume for ATS compatibility using FREE DeepSeek"""
     
-    resume_text = json.dumps(request.resume_content, indent=2)
-    job_desc = request.job_description or "General professional position"
+    # Calculate local score first
+    score_data = calculate_ats_score(request.resume_content, request.job_description)
     
-    # Calculate basic ATS score without AI
-    score = calculate_ats_score(request.resume_content, request.job_description)
-    
-    system_prompt = """Analyze this resume for ATS optimization. Return JSON only:
+    # Try AI for better suggestions
+    system_prompt = """Analyze this resume for ATS compatibility. Return ONLY valid JSON:
 {
   "score": 0-100,
   "issues": [{"severity": "high/medium/low", "issue": "description", "section": "section_name"}],
@@ -704,7 +851,10 @@ async def optimize_resume(request: ATSOptimizeRequest, user: User = Depends(get_
   "missing_keywords": ["keyword1"]
 }"""
     
-    ai_response = await call_ai(system_prompt, f"Resume:\n{resume_text}\n\nJob Description:\n{job_desc}", 2000)
+    resume_text = json.dumps(request.resume_content, indent=2)
+    job_desc = request.job_description or "General professional position"
+    
+    ai_response = await call_ai(system_prompt, f"Resume:\n{resume_text}\n\nJob Description:\n{job_desc}", 1500)
     
     if ai_response:
         try:
@@ -712,20 +862,19 @@ async def optimize_resume(request: ATSOptimizeRequest, user: User = Depends(get_
             if json_match:
                 analysis = json.loads(json_match.group())
                 return ATSScoreResponse(
-                    score=analysis.get("score", score["score"]),
-                    issues=analysis.get("issues", score["issues"]),
-                    suggestions=analysis.get("suggestions", score["suggestions"]),
-                    keyword_matches=analysis.get("keyword_matches", score["keyword_matches"]),
-                    missing_keywords=analysis.get("missing_keywords", score["missing_keywords"])
+                    score=analysis.get("score", score_data["score"]),
+                    issues=analysis.get("issues", score_data["issues"]),
+                    suggestions=analysis.get("suggestions", score_data["suggestions"]),
+                    keyword_matches=analysis.get("keyword_matches", score_data["keyword_matches"]),
+                    missing_keywords=analysis.get("missing_keywords", score_data["missing_keywords"])
                 )
         except:
             pass
     
-    # Return calculated score if AI fails
-    return ATSScoreResponse(**score)
+    return ATSScoreResponse(**score_data)
 
 def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
-    """Calculate ATS score without AI"""
+    """Calculate ATS score locally"""
     score = 50
     issues = []
     suggestions = []
@@ -734,7 +883,6 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
     
     personal = content.get("personalInfo", {})
     
-    # Check personal info
     if personal.get("name"):
         score += 5
     else:
@@ -750,21 +898,18 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
     else:
         issues.append({"severity": "medium", "issue": "Missing phone number", "section": "personalInfo"})
     
-    # Check summary
     if content.get("summary") and len(content["summary"]) > 50:
         score += 10
     else:
-        issues.append({"severity": "medium", "issue": "Professional summary is missing or too short", "section": "summary"})
-        suggestions.append("Add a 2-3 sentence professional summary highlighting your key achievements")
+        issues.append({"severity": "medium", "issue": "Professional summary missing or too short", "section": "summary"})
+        suggestions.append("Add a 2-3 sentence professional summary highlighting key achievements")
     
-    # Check experience
     experience = content.get("experience", [])
     if len(experience) > 0:
         score += 10
         for exp in experience:
             if exp.get("bullets") and len(exp["bullets"]) > 0:
                 score += 2
-                # Check for action verbs
                 for bullet in exp["bullets"]:
                     if bullet and any(verb in bullet.lower() for verb in ["led", "developed", "implemented", "achieved", "increased", "decreased", "managed", "created"]):
                         score += 1
@@ -772,7 +917,6 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
     else:
         issues.append({"severity": "high", "issue": "No work experience listed", "section": "experience"})
     
-    # Check skills
     skills = content.get("skills", [])
     if len(skills) >= 5:
         score += 10
@@ -782,20 +926,18 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
         keyword_matches.extend(skills)
     else:
         issues.append({"severity": "medium", "issue": "No skills listed", "section": "skills"})
-        suggestions.append("Add relevant technical and soft skills")
+        suggestions.append("Add 8-12 relevant technical and soft skills")
     
-    # Check education
     if content.get("education") and len(content["education"]) > 0:
         score += 5
     
-    # Job description keyword matching
     if job_description:
         job_words = set(re.findall(r'\b\w+\b', job_description.lower()))
         resume_text = json.dumps(content).lower()
         resume_words = set(re.findall(r'\b\w+\b', resume_text))
         
-        common_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "shall", "can", "need", "dare", "ought", "used", "better"}
-        job_keywords = job_words - common_words
+        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "need"}
+        job_keywords = job_words - stop_words
         
         matches = job_keywords & resume_words
         missing = job_keywords - resume_words
@@ -806,12 +948,11 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
         match_ratio = len(matches) / len(job_keywords) if job_keywords else 0
         score += int(match_ratio * 20)
     
-    # Cap score at 100
     score = min(score, 100)
     
     if not suggestions:
         suggestions = [
-            "Use strong action verbs at the beginning of bullet points",
+            "Use strong action verbs at the start of bullet points",
             "Quantify achievements with numbers and percentages",
             "Tailor your resume to each job application"
         ]
@@ -825,12 +966,12 @@ def calculate_ats_score(content: Dict, job_description: str = None) -> Dict:
     }
 
 # ========================
-# COVER LETTER ENDPOINTS
+# COVER LETTER
 # ========================
 
-@api_router.post("/cover-letters", response_model=CoverLetter)
+@api_router.post("/cover-letters")
 async def create_cover_letter(data: CoverLetterCreate, user: User = Depends(get_current_user)):
-    """Generate a cover letter"""
+    """Generate cover letter using FREE DeepSeek"""
     
     resume_content = ""
     if data.resume_id:
@@ -839,20 +980,22 @@ async def create_cover_letter(data: CoverLetterCreate, user: User = Depends(get_
             resume_content = json.dumps(resume.get("content", {}), indent=2)
     
     tone_map = {
-        "professional": "formal, professional tone",
+        "professional": "formal, professional tone suitable for corporate environments",
         "friendly": "warm, approachable yet professional tone",
-        "confident": "confident, assertive tone",
-        "enthusiastic": "enthusiastic, energetic tone"
+        "confident": "confident, assertive tone highlighting achievements",
+        "enthusiastic": "enthusiastic, energetic tone showing passion"
     }
     
     system_prompt = f"""Write a compelling cover letter with a {tone_map.get(data.tone, 'professional tone')}.
 
 RULES:
 1. 3-4 paragraphs maximum
-2. Address specific job requirements
-3. No generic phrases like "I am writing to apply"
-4. Strong opening and clear call to action
-5. Professional closing"""
+2. Address specific requirements from the job description
+3. Avoid generic phrases like "I am writing to apply"
+4. Strong opening hook and clear call to action
+5. Professional closing
+
+Write the cover letter directly without any preamble."""
 
     user_prompt = f"""Company: {data.company_name or 'the company'}
 Position: {data.position or 'the position'}
@@ -860,21 +1003,20 @@ Position: {data.position or 'the position'}
 Job Description:
 {data.job_description}
 
-{"Resume/Background:" + resume_content if resume_content else ""}
+{"Resume/Background:\n" + resume_content if resume_content else ""}
 
-Write the cover letter."""
+Write the cover letter:"""
 
     ai_response = await call_ai(system_prompt, user_prompt, 1500)
     
     if not ai_response:
-        # Generate a template cover letter
         ai_response = f"""Dear Hiring Manager,
 
-I am excited to apply for the {data.position or 'position'} at {data.company_name or 'your company'}. With my background and skills, I am confident I can contribute meaningfully to your team.
+I am excited to apply for the {data.position or 'position'} at {data.company_name or 'your company'}. With my relevant background and skills, I am confident I can make meaningful contributions to your team.
 
-Your job description particularly resonated with me because it aligns well with my experience and career goals. I have developed relevant expertise that I believe would be valuable in this role.
+Your job description particularly resonates with my experience and career aspirations. I have developed expertise that directly aligns with your requirements and am eager to bring this value to your organization.
 
-I would welcome the opportunity to discuss how my skills and experience could benefit {data.company_name or 'your organization'}. Thank you for considering my application.
+I would welcome the opportunity to discuss how my skills and experience could benefit {data.company_name or 'your organization'}. Thank you for considering my application, and I look forward to hearing from you.
 
 Best regards"""
 
@@ -895,32 +1037,19 @@ Best regards"""
     await db.cover_letters.insert_one(cl_doc)
     cl_doc.pop("_id", None)
     
-    return CoverLetter(**{**cl_doc, "created_at": datetime.fromisoformat(now), "updated_at": datetime.fromisoformat(now)})
+    return cl_doc
 
-@api_router.get("/cover-letters", response_model=List[CoverLetter])
+@api_router.get("/cover-letters")
 async def get_cover_letters(user: User = Depends(get_current_user)):
     letters = await db.cover_letters.find({"user_id": user.user_id}, {"_id": 0}).sort("updated_at", -1).to_list(100)
-    result = []
-    for cl in letters:
-        if isinstance(cl["created_at"], str):
-            cl["created_at"] = datetime.fromisoformat(cl["created_at"])
-        if isinstance(cl["updated_at"], str):
-            cl["updated_at"] = datetime.fromisoformat(cl["updated_at"])
-        result.append(CoverLetter(**cl))
-    return result
+    return letters
 
-@api_router.get("/cover-letters/{cover_letter_id}", response_model=CoverLetter)
+@api_router.get("/cover-letters/{cover_letter_id}")
 async def get_cover_letter(cover_letter_id: str, user: User = Depends(get_current_user)):
     cl = await db.cover_letters.find_one({"cover_letter_id": cover_letter_id, "user_id": user.user_id}, {"_id": 0})
     if not cl:
         raise HTTPException(status_code=404, detail="Cover letter not found")
-    
-    if isinstance(cl["created_at"], str):
-        cl["created_at"] = datetime.fromisoformat(cl["created_at"])
-    if isinstance(cl["updated_at"], str):
-        cl["updated_at"] = datetime.fromisoformat(cl["updated_at"])
-    
-    return CoverLetter(**cl)
+    return cl
 
 @api_router.put("/cover-letters/{cover_letter_id}")
 async def update_cover_letter(cover_letter_id: str, request: Request, user: User = Depends(get_current_user)):
@@ -943,7 +1072,7 @@ async def delete_cover_letter(cover_letter_id: str, user: User = Depends(get_cur
     return {"message": "Deleted"}
 
 # ========================
-# EXPORT ENDPOINTS
+# EXPORT
 # ========================
 
 @api_router.post("/export/pdf/{resume_id}")
@@ -952,6 +1081,7 @@ async def export_resume_pdf(resume_id: str, user: User = Depends(get_current_use
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
+    from reportlab.lib.colors import HexColor
     
     resume = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
     if not resume:
@@ -964,8 +1094,8 @@ async def export_resume_pdf(resume_id: str, user: User = Depends(get_current_use
     
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=16, spaceAfter=4, alignment=1)
-    contact_style = ParagraphStyle('Contact', parent=styles['Normal'], fontSize=9, alignment=1, textColor='#666666')
-    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=11, spaceBefore=10, spaceAfter=4, textColor='#2563eb')
+    contact_style = ParagraphStyle('Contact', parent=styles['Normal'], fontSize=9, alignment=1, textColor=HexColor('#666666'))
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=11, spaceBefore=10, spaceAfter=4, textColor=HexColor('#4f46e5'))
     normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, spaceAfter=3)
     bullet_style = ParagraphStyle('Bullet', parent=styles['Normal'], fontSize=10, leftIndent=15, spaceAfter=2)
     
@@ -1002,19 +1132,10 @@ async def export_resume_pdf(resume_id: str, user: User = Depends(get_current_use
         story.append(Paragraph("SKILLS", heading_style))
         story.append(Paragraph(", ".join(content["skills"]), normal_style))
     
-    if content.get("certifications"):
-        story.append(Paragraph("CERTIFICATIONS", heading_style))
-        for cert in content["certifications"]:
-            story.append(Paragraph(f"{cert.get('name', '')} - {cert.get('issuer', '')} ({cert.get('date', '')})", normal_style))
-    
     doc.build(story)
     buffer.seek(0)
     
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={resume['title']}.pdf"}
-    )
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={resume['title']}.pdf"})
 
 @api_router.post("/export/docx/{resume_id}")
 async def export_resume_docx(resume_id: str, user: User = Depends(get_current_user)):
@@ -1077,10 +1198,21 @@ async def export_resume_docx(resume_id: str, user: User = Depends(get_current_us
     doc.save(buffer)
     buffer.seek(0)
     
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={resume['title']}.docx"}
+    return StreamingResponse(buffer, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f"attachment; filename={resume['title']}.docx"})
+
+@api_router.get("/export/latex/{resume_id}")
+async def export_resume_latex(resume_id: str, user: User = Depends(get_current_user)):
+    """Export resume as LaTeX source code"""
+    resume = await db.resumes.find_one({"resume_id": resume_id, "user_id": user.user_id}, {"_id": 0})
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    latex_code = resume.get("latex_code") or generate_latex_resume(resume.get("content", {}))
+    
+    return Response(
+        content=latex_code,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={resume['title']}.tex"}
     )
 
 @api_router.post("/export/cover-letter/pdf/{cover_letter_id}")
@@ -1109,14 +1241,10 @@ async def export_cover_letter_pdf(cover_letter_id: str, user: User = Depends(get
     doc.build(story)
     buffer.seek(0)
     
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={cl['title']}.pdf"}
-    )
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={cl['title']}.pdf"})
 
 # ========================
-# DASHBOARD STATS
+# DASHBOARD
 # ========================
 
 @api_router.get("/dashboard/stats")
@@ -1134,7 +1262,6 @@ async def get_dashboard_stats(user: User = Depends(get_current_user)):
         {"_id": 0, "cover_letter_id": 1, "title": 1, "updated_at": 1}
     ).sort("updated_at", -1).limit(5).to_list(5)
     
-    # Calculate average ATS score
     avg_score = None
     scored_resumes = await db.resumes.find(
         {"user_id": user.user_id, "ats_score": {"$ne": None}},
@@ -1151,38 +1278,13 @@ async def get_dashboard_stats(user: User = Depends(get_current_user)):
         "avg_ats_score": avg_score
     }
 
-# ========================
-# TEMPLATES
-# ========================
-
 @api_router.get("/templates")
 async def get_templates():
-    """Get available resume templates"""
     return [
-        {
-            "id": "modern",
-            "name": "Modern Professional",
-            "description": "Clean, minimal design with bold headers",
-            "preview": "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=300&h=400&fit=crop"
-        },
-        {
-            "id": "classic",
-            "name": "Classic Executive",
-            "description": "Traditional format preferred by corporations",
-            "preview": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=300&h=400&fit=crop"
-        },
-        {
-            "id": "creative",
-            "name": "Creative Bold",
-            "description": "Unique design for creative industries",
-            "preview": "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?w=300&h=400&fit=crop"
-        },
-        {
-            "id": "technical",
-            "name": "Technical Focus",
-            "description": "Skills-first layout for tech roles",
-            "preview": "https://images.unsplash.com/photo-1484417894907-623942c8ee29?w=300&h=400&fit=crop"
-        }
+        {"id": "modern", "name": "Modern Professional", "description": "Clean, minimal design"},
+        {"id": "classic", "name": "Classic Executive", "description": "Traditional corporate format"},
+        {"id": "creative", "name": "Creative Bold", "description": "Stand-out design"},
+        {"id": "technical", "name": "Technical Focus", "description": "Skills-first layout"}
     ]
 
 # Include router
